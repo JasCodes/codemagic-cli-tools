@@ -6,7 +6,6 @@ import argparse
 import pathlib
 import re
 import tempfile
-import time
 from distutils.version import LooseVersion
 from functools import lru_cache
 from typing import Iterator
@@ -48,6 +47,7 @@ from ._app_store_connect.action_groups import BetaAppReviewSubmissionsActionGrou
 from ._app_store_connect.action_groups import BetaBuildLocalizationsActionGroup
 from ._app_store_connect.action_groups import BetaGroupsActionGroup
 from ._app_store_connect.action_groups import BuildsActionGroup
+from ._app_store_connect.action_groups import ProfilesActionGroup
 from ._app_store_connect.actions import PublishAction
 from ._app_store_connect.arguments import AppArgument
 from ._app_store_connect.arguments import AppStoreConnectArgument
@@ -92,6 +92,7 @@ class AppStoreConnect(
     BetaBuildLocalizationsActionGroup,
     BetaGroupsActionGroup,
     BuildsActionGroup,
+    ProfilesActionGroup,
     PublishAction,
     ResourceManagerMixin,
     PathFinderMixin,
@@ -526,101 +527,6 @@ class AppStoreConnect(
 
         return certificates
 
-    @cli.action('create-profile',
-                BundleIdArgument.BUNDLE_ID_RESOURCE_ID,
-                CertificateArgument.CERTIFICATE_RESOURCE_IDS,
-                DeviceArgument.DEVICE_RESOURCE_IDS,
-                ProfileArgument.PROFILE_TYPE,
-                ProfileArgument.PROFILE_NAME,
-                CommonArgument.SAVE)
-    def create_profile(self,
-                       bundle_id_resource_id: ResourceId,
-                       certificate_resource_ids: Sequence[ResourceId],
-                       device_resource_ids: Sequence[ResourceId],
-                       profile_type: ProfileType = ProfileType.IOS_APP_DEVELOPMENT,
-                       profile_name: Optional[str] = None,
-                       save: bool = False,
-                       should_print: bool = True) -> Profile:
-        """
-        Create provisioning profile of given type
-        """
-
-        bundle_id = self.get_bundle_id(bundle_id_resource_id, should_print=False)
-        if profile_name:
-            name = profile_name
-        elif profile_name is None:
-            name = f'{bundle_id.attributes.name} {profile_type.value.lower()} {int(time.time())}'
-        else:
-            raise AppStoreConnectError(f'"{profile_name}" is not a valid {Profile} name')
-
-        create_params = dict(
-            name=name,
-            profile_type=profile_type,
-            bundle_id=bundle_id_resource_id,
-            certificates=certificate_resource_ids,
-            devices=[],
-            omit_keys=['devices'],
-        )
-        if profile_type.devices_allowed():
-            create_params['devices'] = device_resource_ids
-        profile = self._create_resource(self.api_client.profiles, should_print, **create_params)
-
-        if save:
-            self._save_profile(profile)
-        return profile
-
-    @cli.action('get-profile',
-                ProfileArgument.PROFILE_RESOURCE_ID,
-                CommonArgument.SAVE)
-    def get_profile(self,
-                    profile_resource_id: ResourceId,
-                    save: bool = False,
-                    should_print: bool = True) -> Profile:
-        """
-        Get specified Profile from Apple Developer portal
-        """
-
-        profile = self._get_resource(profile_resource_id, self.api_client.profiles, should_print)
-        if save:
-            self._save_profile(profile)
-        return profile
-
-    @cli.action('delete-profile',
-                ProfileArgument.PROFILE_RESOURCE_ID,
-                CommonArgument.IGNORE_NOT_FOUND)
-    def delete_profile(self,
-                       profile_resource_id: ResourceId,
-                       ignore_not_found: bool = False) -> None:
-        """
-        Delete specified Profile from Apple Developer portal
-        """
-
-        self._delete_resource(self.api_client.profiles, profile_resource_id, ignore_not_found)
-
-    @cli.action('list-profiles',
-                ProfileArgument.PROFILE_TYPE_OPTIONAL,
-                ProfileArgument.PROFILE_STATE_OPTIONAL,
-                ProfileArgument.PROFILE_NAME,
-                CommonArgument.SAVE)
-    def list_profiles(self,
-                      profile_type: Optional[ProfileType] = None,
-                      profile_state: Optional[ProfileState] = None,
-                      profile_name: Optional[str] = None,
-                      save: bool = False,
-                      should_print: bool = True) -> List[Profile]:
-        """
-        List Profiles from Apple Developer portal matching given constraints
-        """
-        profile_filter = self.api_client.profiles.Filter(
-            profile_type=profile_type,
-            profile_state=profile_state,
-            name=profile_name)
-        profiles = self._list_resources(profile_filter, self.api_client.profiles, should_print)
-
-        if save:
-            self._save_profiles(profiles)
-        return profiles
-
     @cli.action('list-bundle-id-profiles',
                 BundleIdArgument.BUNDLE_ID_RESOURCE_IDS,
                 ProfileArgument.PROFILE_TYPE_OPTIONAL,
@@ -817,13 +723,6 @@ class AppStoreConnect(
         tf.close()
         return pathlib.Path(tf.name)
 
-    def _save_profile(self, profile: Profile) -> pathlib.Path:
-        profile_path = self._get_unique_path(
-            f'{profile.get_display_info()}{profile.profile_extension}', self.profiles_directory)
-        profile_path.write_bytes(profile.profile_content)
-        self.printer.log_saved(profile, profile_path)
-        return profile_path
-
     def _save_certificate(self,
                           certificate: SigningCertificate,
                           private_key: PrivateKey,
@@ -838,9 +737,6 @@ class AppStoreConnect(
             raise AppStoreConnectError(*error.args)
         self.printer.log_saved(certificate, p12_path)
         return p12_path
-
-    def _save_profiles(self, profiles: Sequence[Profile]) -> List[pathlib.Path]:
-        return [self._save_profile(profile) for profile in profiles]
 
     def _save_certificates(self,
                            certificates: Sequence[SigningCertificate],

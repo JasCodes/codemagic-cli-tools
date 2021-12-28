@@ -22,6 +22,7 @@ from codemagic.apple.resources import BetaAppReviewSubmission
 from codemagic.apple.resources import BetaBuildLocalization
 from codemagic.apple.resources import Build
 from codemagic.apple.resources import BuildProcessingState
+from codemagic.apple.resources import BundleId
 from codemagic.apple.resources import Locale
 from codemagic.apple.resources import Platform
 from codemagic.apple.resources import ReleaseType
@@ -61,6 +62,10 @@ class AbstractBaseAction(ResourceManagerMixin, PathFinderMixin, metaclass=ABCMet
         ...
 
     def _assert_api_client_credentials(self, custom_error: Optional[str] = None):
+        ...
+
+    @classmethod
+    def _get_unique_path(cls, file_name: str, destination: pathlib.Path) -> pathlib.Path:
         ...
 
     # Action signatures in alphabetical order
@@ -149,6 +154,16 @@ class AbstractBaseAction(ResourceManagerMixin, PathFinderMixin, metaclass=ABCMet
     ) -> BetaBuildLocalization:
         from .action_groups import BetaBuildLocalizationsActionGroup
         _ = BetaBuildLocalizationsActionGroup.create_beta_build_localization  # Implementation
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_bundle_id(
+        self,
+        bundle_id_resource_id: ResourceId,
+        should_print: bool = True,
+    ) -> BundleId:
+        from ..app_store_connect import AppStoreConnect
+        _ = AppStoreConnect.get_bundle_id  # Implementation
         raise NotImplementedError()
 
     @abstractmethod

@@ -1,3 +1,4 @@
+from abc import ABCMeta
 from typing import List
 from typing import Sequence
 from typing import Set
@@ -15,7 +16,7 @@ from ..arguments import BuildArgument
 from ..errors import AppStoreConnectError
 
 
-class BetaGroupsActionGroup(AbstractBaseAction):
+class BetaGroupsActionGroup(AbstractBaseAction, metaclass=ABCMeta):
 
     @cli.action('add-build',
                 BuildArgument.BUILD_ID_RESOURCE_ID,

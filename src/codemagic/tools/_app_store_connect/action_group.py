@@ -34,3 +34,10 @@ class AppStoreConnectActionGroup(cli.ActionGroup):
         name='beta-groups',
         description='Manage your groups of beta testers in App Store Connect',
     )
+    PROFILES = cli.ActionGroupProperties(
+        name='profiles',
+        description=(
+            'Create, delete, and download provisioning profiles that enable '
+            'app installations for development and distribution'
+        ),
+    )
